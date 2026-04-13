@@ -36,7 +36,7 @@ taskflow/
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-name/taskflow
+git clone https://github.com/RaviTejaRayavarapu/taskflow.git
 cd taskflow
 
 # Copy environment variables
