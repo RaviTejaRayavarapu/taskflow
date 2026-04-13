@@ -18,8 +18,14 @@ taskflow/
 └── backend/               # Java Spring Boot API
     ├── Dockerfile
     ├── pom.xml
-    ├── src/
-    └── README.md          # Detailed backend documentation
+    ├── db-migrations-down/  # Down migrations for rollback
+    └── src/
+        ├── main/
+        │   ├── java/        # Application code
+        │   └── resources/
+        │       ├── application.yml
+        │       └── db/migration/  # Flyway migrations
+        └── test/            # Integration tests
 ```
 
 ---
@@ -48,6 +54,32 @@ docker compose up --build
 - Flyway migrations run (V1 → V2 → V3 → V4)
 - Seed data inserted (1 user, 1 project, 3 tasks)
 - Server ready
+
+---
+
+## Running Migrations
+
+**Migrations run automatically on container start** via Flyway. No manual steps required.
+
+When you run `docker compose up`, the following happens:
+1. PostgreSQL container starts and becomes healthy
+2. API container starts and connects to PostgreSQL
+3. Flyway automatically runs pending migrations in order:
+   - `V1__create_users.sql` - Creates users table
+   - `V2__create_projects.sql` - Creates projects table
+   - `V3__create_tasks.sql` - Creates tasks table with triggers
+   - `V4__seed_data.sql` - Inserts test user, project, and tasks
+
+**Down migrations** are provided in `backend/db-migrations-down/` for manual rollback if needed.
+
+To reset the database:
+```bash
+# Stop and remove volumes
+docker compose down -v
+
+# Start fresh (migrations run automatically)
+docker compose up
+```
 
 ---
 
@@ -176,16 +208,6 @@ Controllers → Services → Repositories → Database
 
 ---
 
-## Documentation
-
-- **Backend Details:** See [`backend/README.md`](backend/README.md) for:
-  - Complete architecture decisions
-  - Tech stack details
-  - All API endpoints with examples
-  - Database schema and migrations
-
----
-
 ## Tech Stack
 
 | Layer | Choice |
@@ -218,27 +240,306 @@ Controllers → Services → Repositories → Database
 
 ---
 
-## API Endpoints
+## API Reference
+
+All endpoints require `Content-Type: application/json`. Protected endpoints require `Authorization: Bearer <token>`.
 
 ### Authentication
-- `POST /auth/register` - Register new user
-- `POST /auth/login` - Login and get JWT token
+
+#### `POST /auth/register`
+Register a new user.
+
+**Request:**
+```json
+{
+  "name": "Jane Doe",
+  "email": "jane@example.com",
+  "password": "password123"
+}
+```
+
+**Response 201:**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9...",
+  "user": {
+    "id": "a1b2c3d4-...",
+    "name": "Jane Doe",
+    "email": "jane@example.com"
+  }
+}
+```
+
+#### `POST /auth/login`
+Login and receive JWT token.
+
+**Request:**
+```json
+{
+  "email": "test@example.com",
+  "password": "password123"
+}
+```
+
+**Response 200:**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9...",
+  "user": {
+    "id": "a0000000-0000-0000-0000-000000000001",
+    "name": "Test User",
+    "email": "test@example.com"
+  }
+}
+```
+
+---
 
 ### Projects
-- `GET /projects?page=0&limit=20` - List accessible projects
-- `POST /projects` - Create project
-- `GET /projects/:id` - Get project with tasks
-- `PATCH /projects/:id` - Update project (owner only)
-- `DELETE /projects/:id` - Delete project (owner only)
-- `GET /projects/:id/stats` - Get task statistics (bonus)
+
+#### `GET /projects?page=0&limit=20`
+List projects the current user owns or has tasks in.
+
+**Response 200:**
+```json
+{
+  "content": [
+    {
+      "id": "b0000000-0000-0000-0000-000000000001",
+      "name": "Sample Project",
+      "description": "A sample project for testing",
+      "ownerId": "a0000000-0000-0000-0000-000000000001",
+      "createdAt": "2026-04-13T10:00:00Z"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1,
+  "last": true
+}
+```
+
+#### `POST /projects`
+Create a new project (owner = current user).
+
+**Request:**
+```json
+{
+  "name": "New Project",
+  "description": "Optional description"
+}
+```
+
+**Response 201:**
+```json
+{
+  "id": "uuid",
+  "name": "New Project",
+  "description": "Optional description",
+  "ownerId": "a0000000-0000-0000-0000-000000000001",
+  "createdAt": "2026-04-13T10:00:00Z"
+}
+```
+
+#### `GET /projects/:id`
+Get project details with all its tasks.
+
+**Response 200:**
+```json
+{
+  "id": "b0000000-0000-0000-0000-000000000001",
+  "name": "Sample Project",
+  "description": "A sample project for testing",
+  "ownerId": "a0000000-0000-0000-0000-000000000001",
+  "createdAt": "2026-04-13T10:00:00Z",
+  "tasks": [
+    {
+      "id": "c0000000-0000-0000-0000-000000000001",
+      "title": "Task 1",
+      "description": "First task",
+      "status": "todo",
+      "priority": "high",
+      "projectId": "b0000000-0000-0000-0000-000000000001",
+      "assigneeId": "a0000000-0000-0000-0000-000000000001",
+      "assigneeName": "Test User",
+      "creatorId": "a0000000-0000-0000-0000-000000000001",
+      "dueDate": "2026-04-18",
+      "createdAt": "2026-04-13T10:00:00Z",
+      "updatedAt": "2026-04-13T10:00:00Z"
+    }
+  ]
+}
+```
+
+#### `PATCH /projects/:id`
+Update project name/description (owner only).
+
+**Request (all fields optional):**
+```json
+{
+  "name": "Updated Project Name",
+  "description": "Updated description"
+}
+```
+
+**Response 200:** Returns updated project object.
+
+#### `DELETE /projects/:id`
+Delete project and all its tasks (owner only).
+
+**Response 204:** No content.
+
+#### `GET /projects/:id/stats` (Bonus)
+Get task statistics for a project.
+
+**Response 200:**
+```json
+{
+  "total": 3,
+  "byStatus": {
+    "todo": 1,
+    "in_progress": 1,
+    "done": 1
+  },
+  "byAssignee": [
+    {
+      "userId": "a0000000-0000-0000-0000-000000000001",
+      "name": "Test User",
+      "count": 3
+    }
+  ]
+}
+```
+
+---
 
 ### Tasks
-- `GET /projects/:id/tasks?status=&priority=&assignee=&page=&limit=` - List tasks with filters
-- `POST /projects/:id/tasks` - Create task
-- `PATCH /tasks/:id` - Update task
-- `DELETE /tasks/:id` - Delete task (owner/creator only)
 
-See [`backend/README.md`](backend/README.md) for complete API documentation with examples.
+#### `GET /projects/:id/tasks?status=todo&priority=high&assignee=uuid&page=0&limit=20`
+List tasks with optional filters and pagination.
+
+**Query Parameters:**
+- `status` (optional): `todo`, `in_progress`, or `done`
+- `priority` (optional): `low`, `medium`, or `high`
+- `assignee` (optional): User UUID
+- `page` (optional): Page number (default: 0)
+- `limit` (optional): Items per page (default: 20)
+
+**Response 200:**
+```json
+{
+  "content": [
+    {
+      "id": "c0000000-0000-0000-0000-000000000002",
+      "title": "Task 2",
+      "description": "Second task",
+      "status": "in_progress",
+      "priority": "medium",
+      "projectId": "b0000000-0000-0000-0000-000000000001",
+      "assigneeId": "a0000000-0000-0000-0000-000000000001",
+      "assigneeName": "Test User",
+      "creatorId": "a0000000-0000-0000-0000-000000000001",
+      "dueDate": "2026-04-23",
+      "createdAt": "2026-04-13T10:00:00Z",
+      "updatedAt": "2026-04-13T10:00:00Z"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1,
+  "last": true
+}
+```
+
+#### `POST /projects/:id/tasks`
+Create a new task in a project.
+
+**Request:**
+```json
+{
+  "title": "Design homepage",
+  "description": "Create wireframes and mockups",
+  "status": "todo",
+  "priority": "high",
+  "assigneeId": "a0000000-0000-0000-0000-000000000001",
+  "dueDate": "2026-04-20"
+}
+```
+
+**Response 201:** Returns created task object.
+
+#### `PATCH /tasks/:id`
+Update task details.
+
+**Request (all fields optional):**
+```json
+{
+  "title": "Updated title",
+  "description": "Updated description",
+  "status": "done",
+  "priority": "low",
+  "assigneeId": "a0000000-0000-0000-0000-000000000001",
+  "dueDate": "2026-04-25",
+  "clearAssignee": false,
+  "clearDueDate": false
+}
+```
+
+Set `clearAssignee: true` or `clearDueDate: true` to explicitly null those fields.
+
+**Response 200:** Returns updated task object.
+
+#### `DELETE /tasks/:id`
+Delete a task (project owner or task creator only).
+
+**Response 204:** No content.
+
+---
+
+### Error Responses
+
+All errors follow a consistent format:
+
+**400 Validation Error:**
+```json
+{
+  "error": "validation failed",
+  "fields": {
+    "email": "is required",
+    "password": "must be at least 8 characters"
+  }
+}
+```
+
+**401 Unauthenticated:**
+```json
+{
+  "error": "unauthorized"
+}
+```
+
+**403 Forbidden:**
+```json
+{
+  "error": "forbidden"
+}
+```
+
+**404 Not Found:**
+```json
+{
+  "error": "not found"
+}
+```
+
+**409 Conflict:**
+```json
+{
+  "error": "email already in use"
+}
+```
 
 ---
 
@@ -250,7 +551,6 @@ See [`backend/README.md`](backend/README.md) for complete API documentation with
 - **Quality over novelty**: I can demonstrate deeper architectural decisions, testing patterns, and production-ready code in Java
 - **Honest assessment**: I believe showing strong engineering in a familiar stack is more valuable than mediocre code in an unfamiliar one
 
-I'm actively learning Go and would be happy to discuss Go-specific patterns (goroutines, channels, interfaces) in the follow-up call.
 
 ---
 
