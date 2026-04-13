@@ -1,4 +1,4 @@
-# TaskFlow — Backend API
+# TaskFlow  Backend API
 
 A task management REST API built with **Java 17 + Spring Boot 3.2**, **PostgreSQL**, and **JWT authentication**.
 
@@ -146,9 +146,8 @@ Controllers → Services → Repositories → Database
 
 ### Performance Optimizations
 1. **Database indexes**: On frequently queried fields
-2. **Optimize N+1 queries**: In task listings
-3. **Connection pool tuning**: Better resource management
-4. **Caching layer**: For frequently accessed data
+2. **Connection pool tuning**: Better resource management
+3. **Caching layer**: For frequently accessed data
 
 ### Monitoring & Operations
 1. **Structured logging**: With request IDs for tracing
