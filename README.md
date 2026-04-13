@@ -202,7 +202,7 @@ Controllers → Services → Repositories → Database
 
 ## Features Implemented
 
-### Core Requirements ✅
+### Core Requirements 
 - JWT authentication (register/login) with bcrypt cost-12
 - Projects API (CRUD with ownership model)
 - Tasks API (CRUD with filters and pagination)
@@ -210,7 +210,7 @@ Controllers → Services → Repositories → Database
 - Docker Compose setup
 - Comprehensive documentation
 
-### Bonus Features ✅
+### Bonus Features 
 - Pagination on all list endpoints (`?page=&limit=`)
 - Stats endpoint (`GET /projects/:id/stats`)
 - 3 integration tests covering auth, permissions, and core flows
